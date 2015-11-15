@@ -215,6 +215,9 @@ public:
     // Predicts the label and confidence for a given sample.
     void predict(InputArray _src, int &label, double &dist) const;
 
+    // Predicts the label and confidence and all distances for a given sample.
+    void predict(InputArray _src, int &label, double &dist, vector<double> &distances) const;
+
     // See FaceRecognizer::load.
     void load(const FileStorage& fs);
 
@@ -269,6 +272,9 @@ public:
 
     // Predicts the label and confidence for a given sample.
     void predict(InputArray _src, int &label, double &dist) const;
+
+    // Predicts the label and confidence and all distances for a given sample.
+    // void predict(InputArray _src, int &label, double &dist, vector<double> &distances) const;
 
     // See FaceRecognizer::load.
     void load(const FileStorage& fs);
@@ -353,6 +359,9 @@ public:
 
     // Predicts the label and confidence for a given sample.
     void predict(InputArray _src, int &label, double &dist) const;
+
+    // Predicts the label and confidence and all distances for a given sample.
+    // void predict(InputArray _src, int &label, double &dist, vector<double> &distances) const;
 
     // See FaceRecognizer::load.
     void load(const FileStorage& fs);
@@ -494,6 +503,36 @@ void Eigenfaces::predict(InputArray _src, int &minClass, double &minDist) const 
     minClass = -1;
     for(size_t sampleIdx = 0; sampleIdx < _projections.size(); sampleIdx++) {
         double dist = norm(_projections[sampleIdx], q, NORM_L2);
+        if((dist < minDist) && (dist < _threshold)) {
+            minDist = dist;
+            minClass = _labels.at<int>((int)sampleIdx);
+        }
+    }
+}
+
+void Eigenfaces::predict(InputArray _src, int &minClass, double &minDist, vector<double> &distances) const {
+    // clear distances
+    distances.clear();
+
+    // get data
+    Mat src = _src.getMat();
+    // make sure the user is passing correct data
+    if(_projections.empty()) {
+        // throw error if no data (or simply return -1?)
+        string error_message = "This Eigenfaces model is not computed yet. Did you call Eigenfaces::train?";
+        CV_Error(CV_StsError, error_message);
+    } else if(_eigenvectors.rows != static_cast<int>(src.total())) {
+        // check data alignment just for clearer exception messages
+        string error_message = format("Wrong input image size. Reason: Training and Test images must be of equal size! Expected an image with %d elements, but got %d.", _eigenvectors.rows, src.total());
+        CV_Error(CV_StsBadArg, error_message);
+    }
+    // project into PCA subspace
+    Mat q = subspaceProject(_eigenvectors, _mean, src.reshape(1,1));
+    minDist = DBL_MAX;
+    minClass = -1;
+    for(size_t sampleIdx = 0; sampleIdx < _projections.size(); sampleIdx++) {
+        double dist = norm(_projections[sampleIdx], q, NORM_L2);
+        distances.push_back(dist);
         if((dist < minDist) && (dist < _threshold)) {
             minDist = dist;
             minClass = _labels.at<int>((int)sampleIdx);
